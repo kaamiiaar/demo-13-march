@@ -85,6 +85,43 @@
         [-21.200698, 149.100255], // Close the polygon by repeating first point
       ];
 
+      // Calculate the actual area of the polygon in hectares
+      const calculatePolygonAreaInHectares = (coordinates) => {
+        // Remove the last coordinate if it's the same as the first (closing point)
+        const coords = coordinates.slice(0, -1);
+
+        // Earth's radius in meters
+        const R = 6371000;
+
+        // Convert latitude and longitude from degrees to radians
+        const radCoords = coords.map((coord) => [
+          (coord[0] * Math.PI) / 180,
+          (coord[1] * Math.PI) / 180,
+        ]);
+
+        // Calculate area using the Shoelace formula adapted for spherical coordinates
+        let area = 0;
+        for (let i = 0; i < radCoords.length; i++) {
+          const j = (i + 1) % radCoords.length;
+
+          // Calculate the area of the sector
+          area +=
+            (radCoords[j][1] - radCoords[i][1]) *
+            Math.sin((radCoords[i][0] + radCoords[j][0]) / 2) *
+            Math.cos((radCoords[i][0] - radCoords[j][0]) / 2);
+        }
+
+        // Multiply by Earth's radius squared to get the area in square meters
+        area = Math.abs((area * R * R) / 2);
+
+        // Convert to hectares (1 hectare = 10,000 square meters)
+        return area / 10000;
+      };
+
+      // Calculate the area in hectares
+      const areaInHectares = calculatePolygonAreaInHectares(squareCoordinates);
+      const formattedArea = areaInHectares.toFixed(2);
+
       // Create the polygon and add it to the map
       const irrigationPolygon = L.polygon(squareCoordinates, {
         color: "#007bff",
@@ -95,10 +132,23 @@
       }).addTo(map);
 
       // Add a popup to the polygon
-      irrigationPolygon.bindPopup("Square Irrigation Set");
+      irrigationPolygon.bindPopup(`
+        <div style="text-align: center; min-width: 200px;">
+          <h4 style="margin: 5px 0;">Lateral Irrigation Set</h4>
+          <div style="margin: 10px 0;">
+            <label class="switch" style="position: relative; display: inline-block; width: 60px; height: 30px;">
+              <input type="checkbox" id="irrigationToggle" style="opacity: 0; width: 0; height: 0;">
+              <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+            </label>
+            <div style="margin-top: 5px;">Irrigation: <span id="irrigationStatus">OFF</span></div>
+          </div>
+        </div>
+      `);
 
       // Fit the map to the polygon bounds
-      map.fitBounds(irrigationPolygon.getBounds());
+      map.fitBounds(irrigationPolygon.getBounds(), {
+        padding: [50, 50], // Add 50 pixels of padding on all sides
+      });
 
       // Add an info panel
       const info = L.control();
@@ -112,8 +162,10 @@
       info.update = function () {
         this._div.innerHTML =
           "<h4>Irrigation Set Information</h4>" +
-          "Area: 1.0 hectare<br>" +
-          "Type: Square Set<br>" +
+          "Area: " +
+          formattedArea +
+          " hectares<br>" +
+          "Type: Lateral Irrigation Set<br>" +
           "Status: Active";
       };
 
@@ -340,7 +392,6 @@
 
         div.innerHTML = `
           <h4 style="margin-top: 0;">Irrigator Controls</h4>
-          <button id="startAnimation">Start Animation</button>
           <button id="resetAnimation">Reset</button>
         `;
 
@@ -390,6 +441,25 @@
           fill-opacity: 0.8 !important;
           animation: waterFlow 4s linear infinite;
         }
+        
+        /* Toggle switch styles */
+        .switch input:checked + span {
+          background-color: #4BB4E6;
+        }
+        .switch span:before {
+          position: absolute;
+          content: "";
+          height: 22px;
+          width: 22px;
+          left: 4px;
+          bottom: 4px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        .switch input:checked + span:before {
+          transform: translateX(30px);
+        }
       `;
       document.head.appendChild(waterStyle);
 
@@ -409,100 +479,139 @@
       const fps = 30;
       const steps = animationDuration / (1000 / fps);
       let currentStep = 0;
+      let irrigationActive = false; // Track if irrigation is active
 
       // Linear interpolation function
       const lerp = (start, end, t) => start + t * (end - start);
 
-      document
-        .getElementById("startAnimation")
-        .addEventListener("click", function () {
-          // Clear any existing animation
-          if (animationInterval) clearInterval(animationInterval);
+      // Function to start the irrigation animation
+      const startIrrigation = () => {
+        // Clear any existing animation
+        if (animationInterval) clearInterval(animationInterval);
 
-          // Start the animation
-          currentStep = 0;
-          animationInterval = setInterval(function () {
-            currentStep++;
+        irrigationActive = true;
 
-            if (currentStep <= steps) {
-              // Calculate progress (0 to 1)
-              const progress = currentStep / steps;
+        // Start the animation
+        currentStep = 0;
+        animationInterval = setInterval(function () {
+          currentStep++;
 
-              // Calculate intermediate line between AD and BC
-              const intermediateLine = [
-                [
-                  lerp(startLine[0][0], endLine[0][0], progress),
-                  lerp(startLine[0][1], endLine[0][1], progress),
-                ],
-                [
-                  lerp(startLine[1][0], endLine[1][0], progress),
-                  lerp(startLine[1][1], endLine[1][1], progress),
-                ],
-              ];
+          if (currentStep <= steps) {
+            // Calculate progress (0 to 1)
+            const progress = currentStep / steps;
 
-              // Create a new rectangle aligned with this intermediate line
-              const newIrrigatorCoords = createIrrigatorRectangle(
-                intermediateLine,
-                irrigatorWidth
-              );
+            // Calculate intermediate line between AD and BC
+            const intermediateLine = [
+              [
+                lerp(startLine[0][0], endLine[0][0], progress),
+                lerp(startLine[0][1], endLine[0][1], progress),
+              ],
+              [
+                lerp(startLine[1][0], endLine[1][0], progress),
+                lerp(startLine[1][1], endLine[1][1], progress),
+              ],
+            ];
 
-              // Update the irrigator shape
-              irrigator.setLatLngs(newIrrigatorCoords);
+            // Create a new rectangle aligned with this intermediate line
+            const newIrrigatorCoords = createIrrigatorRectangle(
+              intermediateLine,
+              irrigatorWidth
+            );
 
-              // Update sprinkler positions along the intermediate line
-              const newSprinklerPositions =
-                calculateSprinklerPositions(intermediateLine);
-              for (let i = 0; i < numSprinklers; i++) {
-                sprinklers[i].setLatLng(newSprinklerPositions[i]);
-              }
+            // Update the irrigator shape
+            irrigator.setLatLngs(newIrrigatorCoords);
 
-              // Update the watered area polygon to fill the area between the start line and current position
-              const newWateredAreaCoords = [
-                startLine[0],
-                startLine[1],
-                intermediateLine[1],
-                intermediateLine[0],
-                startLine[0],
-              ];
-
-              wateredArea.setLatLngs(newWateredAreaCoords);
-            } else {
-              // Animation complete
-              clearInterval(animationInterval);
+            // Update sprinkler positions along the intermediate line
+            const newSprinklerPositions =
+              calculateSprinklerPositions(intermediateLine);
+            for (let i = 0; i < numSprinklers; i++) {
+              sprinklers[i].setLatLng(newSprinklerPositions[i]);
             }
-          }, 1000 / fps);
-        });
 
+            // Update the watered area polygon to fill the area between the start line and current position
+            const newWateredAreaCoords = [
+              startLine[0],
+              startLine[1],
+              intermediateLine[1],
+              intermediateLine[0],
+              startLine[0],
+            ];
+
+            wateredArea.setLatLngs(newWateredAreaCoords);
+          } else {
+            // Animation complete
+            clearInterval(animationInterval);
+          }
+        }, 1000 / fps);
+      };
+
+      // Function to stop the irrigation
+      const stopIrrigation = () => {
+        irrigationActive = false;
+
+        // Clear any existing animation
+        if (animationInterval) clearInterval(animationInterval);
+
+        // Reset irrigator to start position
+        const originalCoords = createIrrigatorRectangle(
+          startLine,
+          irrigatorWidth
+        );
+        irrigator.setLatLngs(originalCoords);
+
+        // Reset sprinkler positions to the start line
+        const resetSprinklerPositions = calculateSprinklerPositions(startLine);
+        for (let i = 0; i < numSprinklers; i++) {
+          sprinklers[i].setLatLng(resetSprinklerPositions[i]);
+        }
+
+        // Reset watered area to initial state (empty)
+        const resetWateredAreaCoords = [
+          startLine[0],
+          startLine[1],
+          startLine[1],
+          startLine[0],
+        ];
+        wateredArea.setLatLngs(resetWateredAreaCoords);
+
+        currentStep = 0;
+      };
+
+      // Event listener for popup open to handle the toggle switch
+      map.on("popupopen", function (e) {
+        const irrigationToggle = document.getElementById("irrigationToggle");
+
+        if (irrigationToggle) {
+          // Set current state
+          irrigationToggle.checked = irrigationActive;
+          document.getElementById("irrigationStatus").textContent =
+            irrigationActive ? "ON" : "OFF";
+
+          // Add event listener
+          irrigationToggle.addEventListener("change", function () {
+            if (this.checked) {
+              startIrrigation();
+              document.getElementById("irrigationStatus").textContent = "ON";
+            } else {
+              stopIrrigation();
+              document.getElementById("irrigationStatus").textContent = "OFF";
+            }
+          });
+        }
+      });
+
+      // Update the Reset button to use the new function
       document
         .getElementById("resetAnimation")
         .addEventListener("click", function () {
-          // Clear any existing animation
-          if (animationInterval) clearInterval(animationInterval);
+          stopIrrigation();
 
-          // Reset irrigator to start position
-          const originalCoords = createIrrigatorRectangle(
-            startLine,
-            irrigatorWidth
-          );
-          irrigator.setLatLngs(originalCoords);
-
-          // Reset sprinkler positions to the start line
-          const resetSprinklerPositions =
-            calculateSprinklerPositions(startLine);
-          for (let i = 0; i < numSprinklers; i++) {
-            sprinklers[i].setLatLng(resetSprinklerPositions[i]);
+          // Update toggle if popup is open
+          const irrigationToggle = document.getElementById("irrigationToggle");
+          if (irrigationToggle) {
+            irrigationToggle.checked = false;
+            document.getElementById("irrigationStatus").textContent = "OFF";
           }
-
-          // Reset watered area to initial state (empty)
-          const resetWateredAreaCoords = [
-            startLine[0],
-            startLine[1],
-            startLine[1],
-            startLine[0],
-          ];
-          wateredArea.setLatLngs(resetWateredAreaCoords);
-
-          currentStep = 0;
         });
 
       // Add lines showing the start and end positions

@@ -106,6 +106,11 @@
       // This is an approximation that works for the scale we're working with
       const radiusInDegrees = radiusInMeters / 111319.9; // Convert meters to degrees (approx)
 
+      // Calculate the area in hectares
+      const areaInHectares =
+        (Math.PI * radiusInMeters * radiusInMeters) / 10000; // Area = πr², convert to hectares
+      const formattedArea = areaInHectares.toFixed(2);
+
       // Create a circle representing the irrigation area
       const irrigationCircle = L.circle(centerPoint, {
         radius: radiusInMeters, // Use meters directly
@@ -117,10 +122,27 @@
       }).addTo(map);
 
       // Add a popup to the circle
-      irrigationCircle.bindPopup("Pivot Irrigation Area");
+      irrigationCircle.bindPopup(`
+        <div style="text-align: center; min-width: 150px;">
+          <h4 style="margin: 5px 0;">Pivot Irrigation Area</h4>
+          <div style="margin: 5px 0; font-size: 14px;">Area: ${formattedArea} hectares</div>
+          <div style="margin: 5px 0; font-size: 14px;">Radius: ${(
+            radiusInMeters / 1000
+          ).toFixed(2)} km</div>
+          <div style="margin: 10px 0;">
+            <label class="switch" style="position: relative; display: inline-block; width: 60px; height: 30px;">
+              <input type="checkbox" id="pivotIrrigationToggle" style="opacity: 0; width: 0; height: 0;">
+              <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+            </label>
+            <div style="margin-top: 5px;">Irrigation: <span id="pivotIrrigationStatus">OFF</span></div>
+          </div>
+        </div>
+      `);
 
       // Fit the map to the circle bounds
-      map.fitBounds(irrigationCircle.getBounds());
+      map.fitBounds(irrigationCircle.getBounds(), {
+        padding: [50, 50], // Add 50 pixels of padding on all sides
+      });
 
       // Add an info panel
       const info = L.control();
@@ -136,7 +158,8 @@
           "<h4>Irrigation Set Information</h4>" +
           `Radius: ${(radiusInMeters / 1000).toFixed(2)} km<br>` +
           "Type: Pivot Irrigator<br>" +
-          "Status: Active";
+          "Status: Active<br>" +
+          `Area: ${formattedArea} hectares`;
       };
 
       info.addTo(map);
@@ -461,6 +484,29 @@
         }
       }, 100);
 
+      // Add style for toggle switches
+      const toggleStyle = document.createElement("style");
+      toggleStyle.textContent = `
+        .switch input:checked + span {
+          background-color: #4BB4E6;
+        }
+        .switch span:before {
+          position: absolute;
+          content: "";
+          height: 22px;
+          width: 22px;
+          left: 4px;
+          bottom: 4px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        .switch input:checked + span:before {
+          transform: translateX(30px);
+        }
+      `;
+      document.head.appendChild(toggleStyle);
+
       // Add animation controls
       const controlPanel = L.control({ position: "bottomleft" });
 
@@ -473,7 +519,6 @@
 
         div.innerHTML = `
           <h4 style="margin-top: 0;">Pivot Irrigator Controls</h4>
-          <button id="startAnimation">Start Animation</button>
           <button id="resetAnimation">Reset</button>
         `;
 
@@ -490,151 +535,184 @@
       let currentStep = 0;
       let currentAngle = initialAngle;
       const wateredAreaPoints = [];
+      let pivotIrrigationActive = false;
 
-      document
-        .getElementById("startAnimation")
-        .addEventListener("click", function () {
-          // Clear any existing animation
-          if (animationInterval) clearInterval(animationInterval);
+      // Function to start the pivot irrigation animation
+      const startPivotIrrigation = () => {
+        // Clear any existing animation
+        if (animationInterval) clearInterval(animationInterval);
 
-          // Start the animation
-          currentStep = 0;
-          wateredAreaPoints.length = 0; // Clear watered area points
+        pivotIrrigationActive = true;
 
-          // Add the initial point to the watered area
-          wateredAreaPoints.push(startPoint);
+        // Start the animation
+        currentStep = 0;
+        wateredAreaPoints.length = 0; // Clear watered area points
 
-          animationInterval = setInterval(function () {
-            currentStep++;
+        // Add the initial point to the watered area
+        wateredAreaPoints.push(startPoint);
 
-            if (currentStep <= steps) {
-              // Calculate progress (0 to 1)
-              const progress = currentStep / steps;
+        animationInterval = setInterval(function () {
+          currentStep++;
 
-              // Calculate the new angle (full 360-degree rotation)
-              const newAngle = initialAngle + progress * 360;
-              currentAngle = newAngle;
+          if (currentStep <= steps) {
+            // Calculate progress (0 to 1)
+            const progress = currentStep / steps;
 
-              // Calculate the new end point of the irrigator arm
-              // Use getPointOnCircle to ensure the point is exactly on the circumference
-              // with the same radius as the initial point
-              const newEndPoint = getPointOnCircle(
-                centerPoint,
-                radiusInDegrees,
-                newAngle
-              );
+            // Calculate the new angle (full 360-degree rotation)
+            const newAngle = initialAngle + progress * 360;
+            currentAngle = newAngle;
 
-              // Update the irrigator arm
-              const newIrrigatorCoords = createIrrigatorArm(
-                centerPoint,
-                newEndPoint,
-                irrigatorWidth
-              );
-              irrigator.setLatLngs(newIrrigatorCoords);
+            // Calculate the new end point of the irrigator arm
+            // Use getPointOnCircle to ensure the point is exactly on the circumference
+            // with the same radius as the initial point
+            const newEndPoint = getPointOnCircle(
+              centerPoint,
+              radiusInDegrees,
+              newAngle
+            );
 
-              // Update sprinkler positions along the arm
-              const newSprinklerPositions = calculateSprinklerPositions(
-                centerPoint,
-                newEndPoint
-              );
-              for (let i = 0; i < numSprinklers; i++) {
-                sprinklers[i].setLatLng(newSprinklerPositions[i]);
-              }
+            // Update the irrigator arm
+            const newIrrigatorCoords = createIrrigatorArm(
+              centerPoint,
+              newEndPoint,
+              irrigatorWidth
+            );
+            irrigator.setLatLngs(newIrrigatorCoords);
 
-              // Update the watered area to show a pie/sector shape
-              // Generate points for the current angle sector
-              const sectorPoints = [];
-
-              // Add center point
-              sectorPoints.push(centerPoint);
-
-              // Add starting point
-              sectorPoints.push(startPoint);
-
-              // Add points along the arc from start angle to current angle
-              const angleStep = 5; // Add a point every 5 degrees for smoothness
-              const startAng = initialAngle;
-              const endAng = newAngle;
-
-              // Handle case where we've gone past 360 degrees
-              const normalizedEndAngle =
-                endAng > startAng + 360 ? startAng + 360 : endAng;
-
-              for (
-                let angle = startAng + angleStep;
-                angle <= normalizedEndAngle;
-                angle += angleStep
-              ) {
-                sectorPoints.push(
-                  getPointOnCircle(centerPoint, radiusInDegrees, angle)
-                );
-              }
-
-              // Add the current end point if it's not already included
-              if (normalizedEndAngle % angleStep !== 0) {
-                sectorPoints.push(newEndPoint);
-              }
-
-              // Close the polygon by returning to center
-              sectorPoints.push(centerPoint);
-
-              // Update the watered area
-              wateredArea.setLatLngs(sectorPoints);
-            } else {
-              // Animation complete
-              clearInterval(animationInterval);
-
-              // Complete the watered area to cover the full circle
-              // Generate points around the full circle for a smooth circle
-              const fullCirclePoints = [];
-
-              // Add points around the circumference
-              const angleStep = 5; // 5-degree steps for smoothness
-              for (let angle = 0; angle <= 360; angle += angleStep) {
-                fullCirclePoints.push(
-                  getPointOnCircle(centerPoint, radiusInDegrees, angle)
-                );
-              }
-
-              // Close the polygon by adding the first circumference point again
-              fullCirclePoints.push(
-                getPointOnCircle(centerPoint, radiusInDegrees, 0)
-              );
-
-              wateredArea.setLatLngs(fullCirclePoints);
+            // Update sprinkler positions along the arm
+            const newSprinklerPositions = calculateSprinklerPositions(
+              centerPoint,
+              newEndPoint
+            );
+            for (let i = 0; i < numSprinklers; i++) {
+              sprinklers[i].setLatLng(newSprinklerPositions[i]);
             }
-          }, 1000 / fps);
-        });
+
+            // Update the watered area to show a pie/sector shape
+            // Generate points for the current angle sector
+            const sectorPoints = [];
+
+            // Add center point
+            sectorPoints.push(centerPoint);
+
+            // Add starting point
+            sectorPoints.push(startPoint);
+
+            // Add points along the arc from start angle to current angle
+            const angleStep = 5; // Add a point every 5 degrees for smoothness
+            const startAng = initialAngle;
+            const endAng = newAngle;
+
+            // Handle case where we've gone past 360 degrees
+            const normalizedEndAngle =
+              endAng > startAng + 360 ? startAng + 360 : endAng;
+
+            for (
+              let angle = startAng + angleStep;
+              angle <= normalizedEndAngle;
+              angle += angleStep
+            ) {
+              sectorPoints.push(
+                getPointOnCircle(centerPoint, radiusInDegrees, angle)
+              );
+            }
+
+            // Add the current end point if it's not already included
+            if (normalizedEndAngle % angleStep !== 0) {
+              sectorPoints.push(newEndPoint);
+            }
+
+            // Close the polygon by returning to center
+            sectorPoints.push(centerPoint);
+
+            // Update the watered area
+            wateredArea.setLatLngs(sectorPoints);
+          } else {
+            // Animation complete
+            clearInterval(animationInterval);
+
+            // Complete the watered area to cover the full circle
+            // Generate points around the full circle for a smooth circle
+            const fullCirclePoints = [];
+
+            // Add points around the circumference
+            const angleStep = 5; // 5-degree steps for smoothness
+            for (let angle = 0; angle <= 360; angle += angleStep) {
+              fullCirclePoints.push(
+                getPointOnCircle(centerPoint, radiusInDegrees, angle)
+              );
+            }
+
+            // Close the polygon by adding the first circumference point again
+            fullCirclePoints.push(
+              getPointOnCircle(centerPoint, radiusInDegrees, 0)
+            );
+
+            wateredArea.setLatLngs(fullCirclePoints);
+          }
+        }, 1000 / fps);
+      };
+
+      // Function to stop the pivot irrigation
+      const stopPivotIrrigation = () => {
+        // Clear any existing animation
+        if (animationInterval) clearInterval(animationInterval);
+
+        pivotIrrigationActive = false;
+
+        // Reset irrigator to start position
+        const originalCoords = createIrrigatorArm(
+          centerPoint,
+          startPoint,
+          irrigatorWidth
+        );
+        irrigator.setLatLngs(originalCoords);
+
+        // Reset sprinkler positions
+        const resetSprinklerPositions = calculateSprinklerPositions(
+          centerPoint,
+          startPoint
+        );
+        for (let i = 0; i < numSprinklers; i++) {
+          sprinklers[i].setLatLng(resetSprinklerPositions[i]);
+        }
+
+        // Reset watered area to initial state (empty)
+        wateredArea.setLatLngs([]);
+        wateredAreaPoints.length = 0;
+
+        currentStep = 0;
+        currentAngle = initialAngle;
+      };
+
+      // Event listeners for toggle switch
+      map.on("popupopen", function (e) {
+        // Check if it's the pivot irrigation popup
+        const pivotToggle = document.getElementById("pivotIrrigationToggle");
+        if (pivotToggle) {
+          pivotToggle.checked = pivotIrrigationActive;
+          document.getElementById("pivotIrrigationStatus").textContent =
+            pivotIrrigationActive ? "ON" : "OFF";
+
+          pivotToggle.addEventListener("change", function () {
+            if (this.checked) {
+              startPivotIrrigation();
+              document.getElementById("pivotIrrigationStatus").textContent =
+                "ON";
+            } else {
+              stopPivotIrrigation();
+              document.getElementById("pivotIrrigationStatus").textContent =
+                "OFF";
+            }
+          });
+        }
+      });
 
       document
         .getElementById("resetAnimation")
         .addEventListener("click", function () {
-          // Clear any existing animation
-          if (animationInterval) clearInterval(animationInterval);
-
-          // Reset irrigator to start position
-          const originalCoords = createIrrigatorArm(
-            centerPoint,
-            startPoint,
-            irrigatorWidth
-          );
-          irrigator.setLatLngs(originalCoords);
-
-          // Reset sprinkler positions
-          const resetSprinklerPositions = calculateSprinklerPositions(
-            centerPoint,
-            startPoint
-          );
-          for (let i = 0; i < numSprinklers; i++) {
-            sprinklers[i].setLatLng(resetSprinklerPositions[i]);
-          }
-
-          // Reset watered area to initial state (empty)
-          wateredArea.setLatLngs([]);
-          wateredAreaPoints.length = 0;
-
-          currentStep = 0;
-          currentAngle = initialAngle;
+          stopPivotIrrigation();
+          pivotIrrigationActive = false;
         });
 
       // Add a marker for the starting position using the original start point

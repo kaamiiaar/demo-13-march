@@ -74,21 +74,62 @@
 
       // Create left irrigation set polygon (unwatered style: same as type2)
       const leftSetCoordinates = [
-        [-21.215364, 149.100756],
-        [-21.211755, 149.101202],
-        [-21.212008, 149.103543],
-        [-21.215616, 149.103097],
-        [-21.215364, 149.100756], // Close the polygon
+        [-21.2155803060779, 149.10271167816677],
+        [-21.211954676535424, 149.10317838192978],
+        [-21.211999685256227, 149.10356462002792],
+        [-21.215620333143892, 149.10308718679352],
+        [-21.2155803060779, 149.10271167816677], // Close the polygon
       ];
 
       // Create right irrigation set polygon (unwatered style: same as type2)
       const rightSetCoordinates = [
-        [-21.215616, 149.10324],
-        [-21.212013, 149.10364],
-        [-21.212305, 149.106012],
-        [-21.215794, 149.105629],
-        [-21.215616, 149.10324], // Close the polygon
+        [-21.21563534437809, 149.10317301752173],
+        [-21.212008335454467, 149.10364525156433],
+        [-21.212044685264814, 149.10400450220715],
+        [-21.215670353188735, 149.10352170460428],
+        [-21.21563534437809, 149.10317301752173], // Close the polygon
       ];
+
+      // Calculate the actual area of a polygon in hectares
+      const calculatePolygonAreaInHectares = (coordinates) => {
+        // Remove the last coordinate if it's the same as the first (closing point)
+        const coords = coordinates.slice(0, -1);
+
+        // Earth's radius in meters
+        const R = 6371000;
+
+        // Convert latitude and longitude from degrees to radians
+        const radCoords = coords.map((coord) => [
+          (coord[0] * Math.PI) / 180,
+          (coord[1] * Math.PI) / 180,
+        ]);
+
+        // Calculate area using the Shoelace formula adapted for spherical coordinates
+        let area = 0;
+        for (let i = 0; i < radCoords.length; i++) {
+          const j = (i + 1) % radCoords.length;
+
+          // Calculate the area of the sector
+          area +=
+            (radCoords[j][1] - radCoords[i][1]) *
+            Math.sin((radCoords[i][0] + radCoords[j][0]) / 2) *
+            Math.cos((radCoords[i][0] - radCoords[j][0]) / 2);
+        }
+
+        // Multiply by Earth's radius squared to get the area in square meters
+        area = Math.abs((area * R * R) / 2);
+
+        // Convert to hectares (1 hectare = 10,000 square meters)
+        return area / 10000;
+      };
+
+      // Calculate the areas in hectares
+      const leftAreaInHectares =
+        calculatePolygonAreaInHectares(leftSetCoordinates);
+      const rightAreaInHectares =
+        calculatePolygonAreaInHectares(rightSetCoordinates);
+      const leftFormattedArea = leftAreaInHectares.toFixed(2);
+      const rightFormattedArea = rightAreaInHectares.toFixed(2);
 
       const leftIrrigationPolygon = L.polygon(leftSetCoordinates, {
         color: "#007bff",
@@ -107,15 +148,56 @@
       }).addTo(map);
 
       // Add popups to the polygons
-      leftIrrigationPolygon.bindPopup("Left Irrigation Set");
-      rightIrrigationPolygon.bindPopup("Right Irrigation Set");
+      leftIrrigationPolygon.bindPopup(`
+        <div style="text-align: center; min-width: 200px;">
+          <h4 style="margin: 5px 0;">Left Irrigation Set</h4>
+          <div style="margin: 5px 0; font-size: 14px;">Coupled with: Right Set</div>
+          <div style="margin: 10px 0;">
+            <div style="margin-bottom: 10px;">
+              <label for="leftOperationMode" style="display: block; margin-bottom: 5px; text-align: left;">Operation Mode:</label>
+              <select id="leftOperationMode" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                <option value="single">Single set</option>
+                <option value="coupled">Coupled sets</option>
+              </select>
+            </div>
+            <label class="switch" style="position: relative; display: inline-block; width: 60px; height: 30px;">
+              <input type="checkbox" id="leftIrrigationToggle" style="opacity: 0; width: 0; height: 0;">
+              <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+            </label>
+            <div style="margin-top: 5px;">Irrigation: <span id="leftIrrigationStatus">OFF</span></div>
+          </div>
+        </div>
+      `);
+
+      rightIrrigationPolygon.bindPopup(`
+        <div style="text-align: center; min-width: 200px;">
+          <h4 style="margin: 5px 0;">Right Irrigation Set</h4>
+          <div style="margin: 5px 0; font-size: 14px;">Coupled with: Left Set</div>
+          <div style="margin: 10px 0;">
+            <div style="margin-bottom: 10px;">
+              <label for="rightOperationMode" style="display: block; margin-bottom: 5px; text-align: left;">Operation Mode:</label>
+              <select id="rightOperationMode" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                <option value="single">Single set</option>
+                <option value="coupled">Coupled sets</option>
+              </select>
+            </div>
+            <label class="switch" style="position: relative; display: inline-block; width: 60px; height: 30px;">
+              <input type="checkbox" id="rightIrrigationToggle" style="opacity: 0; width: 0; height: 0;">
+              <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+            </label>
+            <div style="margin-top: 5px;">Irrigation: <span id="rightIrrigationStatus">OFF</span></div>
+          </div>
+        </div>
+      `);
 
       // Group both polygons for a proper fit
       const irrigationGroup = L.featureGroup([
         leftIrrigationPolygon,
         rightIrrigationPolygon,
       ]);
-      map.fitBounds(irrigationGroup.getBounds());
+      map.fitBounds(irrigationGroup.getBounds(), {
+        padding: [50, 50], // Add 50 pixels of padding on all sides
+      });
 
       // Info panel
       const info = L.control();
@@ -127,24 +209,22 @@
       info.update = function () {
         this._div.innerHTML =
           "<h4>Irrigation Sets Information</h4>" +
-          "Left Set Area: 0.8 hectare<br>" +
-          "Right Set Area: 0.8 hectare<br>" +
+          "Left Set Area: " +
+          leftFormattedArea +
+          " hectares<br>" +
+          "Right Set Area: " +
+          rightFormattedArea +
+          " hectares<br>" +
           "Type: Dual Sets<br>" +
           "Status: Active";
       };
       info.addTo(map);
 
       // Define irrigator travel path between the two sets
-      // Start: midpoint between leftSet(D) and rightSet(A)
-      const startPoint = [
-        (leftSetCoordinates[3][0] + rightSetCoordinates[0][0]) / 2,
-        (leftSetCoordinates[3][1] + rightSetCoordinates[0][1]) / 2,
-      ];
-      // End: midpoint between leftSet(C) and rightSet(B)
-      const endPoint = [
-        (leftSetCoordinates[2][0] + rightSetCoordinates[1][0]) / 2,
-        (leftSetCoordinates[2][1] + rightSetCoordinates[1][1]) / 2,
-      ];
+      // Using exact coordinates provided
+      const startPoint = [-21.215625, 149.103133];
+      // End point
+      const endPoint = [-21.2120105, 149.1035915];
 
       // Draw a faint line showing the path
       const irrigatorPath = [startPoint, endPoint];
@@ -181,9 +261,9 @@
             <circle cx="45" cy="20" r="1.5" fill="white" stroke="#cccccc" stroke-width="0.5" class="sprinkler" />
             <circle cx="52" cy="20" r="1.5" fill="white" stroke="#cccccc" stroke-width="0.5" class="sprinkler" />
             
-            <!-- Water spray for all sprinklers -->
-            <g class="water-spray">
-              <!-- Left sprinkler sprays -->
+            <!-- Water spray for left and right sides (separated) -->
+            <!-- Left sprinkler sprays -->
+            <g class="water-spray left-spray">
               <path d="M8,20 Q8,15 8,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
               <path d="M8,20 Q5,15 3,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
               <path d="M8,20 Q11,15 13,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
@@ -191,8 +271,10 @@
               <path d="M15,20 Q15,15 15,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
               <path d="M15,20 Q12,15 10,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
               <path d="M15,20 Q18,15 20,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+            </g>
               
-              <!-- Right sprinkler sprays -->
+            <!-- Right sprinkler sprays -->
+            <g class="water-spray right-spray">
               <path d="M45,20 Q45,15 45,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
               <path d="M45,20 Q42,15 40,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
               <path d="M45,20 Q48,15 50,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
@@ -244,6 +326,20 @@
         .water-spray {
           animation: spray 1.5s infinite;
           filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.8));
+        }
+        /* Hide both sprays by default */
+        .left-spray, .right-spray {
+          opacity: 0;
+          display: none;
+        }
+        /* Classes to show specific sprays when active */
+        .left-irrigation-active .left-spray {
+          opacity: 1;
+          display: block;
+        }
+        .right-irrigation-active .right-spray {
+          opacity: 1;
+          display: block;
         }
         .irrigator-icon {
           z-index: 1000;
@@ -345,6 +441,29 @@
           });
       }, 100);
 
+      // Add style for toggle switches
+      const toggleStyle = document.createElement("style");
+      toggleStyle.textContent = `
+        .switch input:checked + span {
+          background-color: #4BB4E6;
+        }
+        .switch span:before {
+          position: absolute;
+          content: "";
+          height: 22px;
+          width: 22px;
+          left: 4px;
+          bottom: 4px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        .switch input:checked + span:before {
+          transform: translateX(30px);
+        }
+      `;
+      document.head.appendChild(toggleStyle);
+
       // Controls
       const controlPanel = L.control({ position: "bottomleft" });
       controlPanel.onAdd = function (map) {
@@ -355,8 +474,7 @@
         div.style.boxShadow = "0 0 15px rgba(0,0,0,0.2)";
         div.innerHTML = `
           <h4 style="margin-top: 0;">Dual Set Irrigator Controls</h4>
-          <button id="startAnimation" style="margin-right: 5px; padding: 5px 10px; background-color: #4BB4E6; color: white; border: none; border-radius: 3px; cursor: pointer;">Start Animation</button>
-          <button id="resetAnimation" style="padding: 5px 10px; background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 3px; cursor: pointer;">Reset</button>
+          <button id="resetAnimation" style="padding: 5px 10px; background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 3px; cursor: pointer;">Reset All</button>
         `;
         return div;
       };
@@ -364,51 +482,139 @@
 
       // Animation logic
       let animationInterval;
+      let irrigatorMoveInterval;
       const animationDuration = 10000; // 10 seconds
       const fps = 30;
       const steps = animationDuration / (1000 / fps);
       let currentStep = 0;
+      let leftIrrigationActive = false;
+      let rightIrrigationActive = false;
+      let leftOperationMode = "single";
+      let rightOperationMode = "single";
+      let irrigatorMoving = false;
+      let irrigatorAtStart = true; // Track irrigator position (start at the start point)
 
       // Linear interpolation helper
       const lerp = (start, end, t) => start + t * (end - start);
 
-      document
-        .getElementById("startAnimation")
-        .addEventListener("click", function () {
-          // Clear any existing animation
-          if (animationInterval) clearInterval(animationInterval);
+      // Function to move irrigator along the path
+      const moveIrrigator = () => {
+        if (irrigatorMoving) return;
 
-          // Start the animation
-          currentStep = 0;
-          animationInterval = setInterval(function () {
-            currentStep++;
-            if (currentStep <= steps) {
-              const progress = currentStep / steps;
+        irrigatorMoving = true;
+        currentStep = 0;
 
-              // Current irrigator position
-              const currentPosition = [
-                lerp(startPoint[0], endPoint[0], progress),
-                lerp(startPoint[1], endPoint[1], progress),
-              ];
-              irrigator.setLatLng(currentPosition);
+        // Determine direction based on current position
+        const fromStartToEnd = irrigatorAtStart;
 
-              // Keep correct rotation
-              setTimeout(() => {
-                const irrigatorElement = document.querySelector(
-                  ".irrigator-icon svg"
-                );
-                if (irrigatorElement) {
-                  irrigatorElement.style.transform = `rotate(${pathAngle}deg)`;
-                  irrigatorElement.style.transformOrigin = "center center";
-                }
-              }, 10);
+        // Set correct rotation
+        const moveAngle = fromStartToEnd ? pathAngle : (pathAngle + 180) % 360;
+        setTimeout(() => {
+          const irrigatorElement = document.querySelector(
+            ".irrigator-icon svg"
+          );
+          if (irrigatorElement) {
+            irrigatorElement.style.transform = `rotate(${moveAngle}deg)`;
+            irrigatorElement.style.transformOrigin = "center center";
+          }
+        }, 10);
 
-              // Fade watered areas in once animation starts
-              leftWateredArea.setStyle({ fillOpacity: 0.7 });
-              rightWateredArea.setStyle({ fillOpacity: 0.7 });
+        // Start movement animation
+        if (irrigatorMoveInterval) clearInterval(irrigatorMoveInterval);
 
-              // For left set: expand from D-A to C-B
-              const leftWateredAreaCoords = [
+        irrigatorMoveInterval = setInterval(function () {
+          currentStep++;
+          if (currentStep <= steps) {
+            const progress = currentStep / steps;
+
+            // Current irrigator position
+            const currentPosition = fromStartToEnd
+              ? [
+                  lerp(startPoint[0], endPoint[0], progress),
+                  lerp(startPoint[1], endPoint[1], progress),
+                ]
+              : [
+                  lerp(endPoint[0], startPoint[0], progress),
+                  lerp(endPoint[1], startPoint[1], progress),
+                ];
+
+            irrigator.setLatLng(currentPosition);
+
+            // Keep correct rotation
+            setTimeout(() => {
+              const irrigatorElement = document.querySelector(
+                ".irrigator-icon svg"
+              );
+              if (irrigatorElement) {
+                irrigatorElement.style.transform = `rotate(${moveAngle}deg)`;
+                irrigatorElement.style.transformOrigin = "center center";
+              }
+            }, 10);
+          } else {
+            clearInterval(irrigatorMoveInterval);
+            irrigatorMoving = false;
+
+            // Update irrigator position tracking
+            irrigatorAtStart = !irrigatorAtStart;
+          }
+        }, 1000 / fps);
+      };
+
+      // Function to start the left irrigation animation
+      const startLeftIrrigation = () => {
+        leftIrrigationActive = true;
+
+        // If in coupled mode, also activate right irrigation
+        if (leftOperationMode === "coupled" && !rightIrrigationActive) {
+          rightIrrigationActive = true;
+          rightWateredArea.setStyle({ fillOpacity: 0.7 });
+
+          // Update right toggle if popup is open
+          const rightToggle = document.getElementById("rightIrrigationToggle");
+          if (rightToggle) {
+            rightToggle.checked = true;
+            document.getElementById("rightIrrigationStatus").textContent = "ON";
+          }
+
+          // Show right sprinkler animation
+          const irrigatorElement = document.querySelector(".irrigator-icon");
+          if (irrigatorElement) {
+            irrigatorElement.classList.add("right-irrigation-active");
+          }
+        }
+
+        // Start moving irrigator based on its current position
+        if (!irrigatorMoving) {
+          moveIrrigator();
+        }
+
+        // Fade watered area in
+        leftWateredArea.setStyle({ fillOpacity: 0.7 });
+
+        // Show left sprinkler animation
+        const irrigatorElement = document.querySelector(".irrigator-icon");
+        if (irrigatorElement) {
+          irrigatorElement.classList.add("left-irrigation-active");
+        }
+
+        // Animate the watered area expansion
+        currentStep = 0;
+        if (animationInterval) clearInterval(animationInterval);
+
+        // Determine the direction of water flow based on irrigator position
+        const flowFromStartToEnd = irrigatorAtStart;
+
+        animationInterval = setInterval(function () {
+          currentStep++;
+          if (currentStep <= steps) {
+            const progress = currentStep / steps;
+
+            // For left set: direction of expansion depends on irrigator position
+            let leftWateredAreaCoords;
+
+            if (flowFromStartToEnd) {
+              // Irrigator is at start, water flows from start to end (D-A to C-B)
+              leftWateredAreaCoords = [
                 leftSetCoordinates[3], // D
                 leftSetCoordinates[0], // A
                 [
@@ -436,9 +642,169 @@
                   ),
                 ],
               ];
+            } else {
+              // Irrigator is at end, water flows from end to start (C-B to D-A)
+              leftWateredAreaCoords = [
+                [
+                  lerp(
+                    leftSetCoordinates[2][0],
+                    leftSetCoordinates[3][0],
+                    progress
+                  ),
+                  lerp(
+                    leftSetCoordinates[2][1],
+                    leftSetCoordinates[3][1],
+                    progress
+                  ),
+                ],
+                [
+                  lerp(
+                    leftSetCoordinates[1][0],
+                    leftSetCoordinates[0][0],
+                    progress
+                  ),
+                  lerp(
+                    leftSetCoordinates[1][1],
+                    leftSetCoordinates[0][1],
+                    progress
+                  ),
+                ],
+                leftSetCoordinates[1], // B
+                leftSetCoordinates[2], // C
+              ];
+            }
 
-              // For right set: expand from its left edge to the interior
-              const rightWateredAreaCoords = [
+            leftWateredArea.setLatLngs(leftWateredAreaCoords);
+
+            // If in coupled mode, also animate right set
+            if (leftOperationMode === "coupled") {
+              let rightWateredAreaCoords;
+
+              if (flowFromStartToEnd) {
+                // Irrigator is at start, water flows from start to end
+                rightWateredAreaCoords = [
+                  rightSetCoordinates[0],
+                  rightSetCoordinates[3],
+                  [
+                    lerp(
+                      rightSetCoordinates[3][0],
+                      rightSetCoordinates[2][0],
+                      progress
+                    ),
+                    lerp(
+                      rightSetCoordinates[3][1],
+                      rightSetCoordinates[2][1],
+                      progress
+                    ),
+                  ],
+                  [
+                    lerp(
+                      rightSetCoordinates[0][0],
+                      rightSetCoordinates[1][0],
+                      progress
+                    ),
+                    lerp(
+                      rightSetCoordinates[0][1],
+                      rightSetCoordinates[1][1],
+                      progress
+                    ),
+                  ],
+                ];
+              } else {
+                // Irrigator is at end, water flows from end to start
+                rightWateredAreaCoords = [
+                  [
+                    lerp(
+                      rightSetCoordinates[1][0],
+                      rightSetCoordinates[0][0],
+                      progress
+                    ),
+                    lerp(
+                      rightSetCoordinates[1][1],
+                      rightSetCoordinates[0][1],
+                      progress
+                    ),
+                  ],
+                  [
+                    lerp(
+                      rightSetCoordinates[2][0],
+                      rightSetCoordinates[3][0],
+                      progress
+                    ),
+                    lerp(
+                      rightSetCoordinates[2][1],
+                      rightSetCoordinates[3][1],
+                      progress
+                    ),
+                  ],
+                  rightSetCoordinates[2],
+                  rightSetCoordinates[1],
+                ];
+              }
+
+              rightWateredArea.setLatLngs(rightWateredAreaCoords);
+            }
+          } else {
+            clearInterval(animationInterval);
+          }
+        }, 1000 / fps);
+      };
+
+      // Function to start the right irrigation animation
+      const startRightIrrigation = () => {
+        rightIrrigationActive = true;
+
+        // If in coupled mode, also activate left irrigation
+        if (rightOperationMode === "coupled" && !leftIrrigationActive) {
+          leftIrrigationActive = true;
+          leftWateredArea.setStyle({ fillOpacity: 0.7 });
+
+          // Update left toggle if popup is open
+          const leftToggle = document.getElementById("leftIrrigationToggle");
+          if (leftToggle) {
+            leftToggle.checked = true;
+            document.getElementById("leftIrrigationStatus").textContent = "ON";
+          }
+
+          // Show left sprinkler animation
+          const irrigatorElement = document.querySelector(".irrigator-icon");
+          if (irrigatorElement) {
+            irrigatorElement.classList.add("left-irrigation-active");
+          }
+        }
+
+        // Start moving irrigator based on its current position
+        if (!irrigatorMoving) {
+          moveIrrigator();
+        }
+
+        // Fade watered area in
+        rightWateredArea.setStyle({ fillOpacity: 0.7 });
+
+        // Show right sprinkler animation
+        const irrigatorElement = document.querySelector(".irrigator-icon");
+        if (irrigatorElement) {
+          irrigatorElement.classList.add("right-irrigation-active");
+        }
+
+        // Animate the watered area expansion
+        currentStep = 0;
+        if (animationInterval) clearInterval(animationInterval);
+
+        // Determine the direction of water flow based on irrigator position
+        const flowFromStartToEnd = irrigatorAtStart;
+
+        animationInterval = setInterval(function () {
+          currentStep++;
+          if (currentStep <= steps) {
+            const progress = currentStep / steps;
+
+            // For right set: direction of expansion depends on irrigator position
+            let rightWateredAreaCoords;
+
+            if (flowFromStartToEnd) {
+              // Irrigator is at start, water flows from start to end
+              rightWateredAreaCoords = [
                 rightSetCoordinates[0],
                 rightSetCoordinates[3],
                 [
@@ -466,23 +832,444 @@
                   ),
                 ],
               ];
+            } else {
+              // Irrigator is at end, water flows from end to start
+              rightWateredAreaCoords = [
+                [
+                  lerp(
+                    rightSetCoordinates[1][0],
+                    rightSetCoordinates[0][0],
+                    progress
+                  ),
+                  lerp(
+                    rightSetCoordinates[1][1],
+                    rightSetCoordinates[0][1],
+                    progress
+                  ),
+                ],
+                [
+                  lerp(
+                    rightSetCoordinates[2][0],
+                    rightSetCoordinates[3][0],
+                    progress
+                  ),
+                  lerp(
+                    rightSetCoordinates[2][1],
+                    rightSetCoordinates[3][1],
+                    progress
+                  ),
+                ],
+                rightSetCoordinates[2],
+                rightSetCoordinates[1],
+              ];
+            }
+
+            rightWateredArea.setLatLngs(rightWateredAreaCoords);
+
+            // If in coupled mode, also animate left set
+            if (rightOperationMode === "coupled") {
+              let leftWateredAreaCoords;
+
+              if (flowFromStartToEnd) {
+                // Irrigator is at start, water flows from start to end
+                leftWateredAreaCoords = [
+                  leftSetCoordinates[3], // D
+                  leftSetCoordinates[0], // A
+                  [
+                    lerp(
+                      leftSetCoordinates[0][0],
+                      leftSetCoordinates[1][0],
+                      progress
+                    ),
+                    lerp(
+                      leftSetCoordinates[0][1],
+                      leftSetCoordinates[1][1],
+                      progress
+                    ),
+                  ],
+                  [
+                    lerp(
+                      leftSetCoordinates[3][0],
+                      leftSetCoordinates[2][0],
+                      progress
+                    ),
+                    lerp(
+                      leftSetCoordinates[3][1],
+                      leftSetCoordinates[2][1],
+                      progress
+                    ),
+                  ],
+                ];
+              } else {
+                // Irrigator is at end, water flows from end to start
+                leftWateredAreaCoords = [
+                  [
+                    lerp(
+                      leftSetCoordinates[2][0],
+                      leftSetCoordinates[3][0],
+                      progress
+                    ),
+                    lerp(
+                      leftSetCoordinates[2][1],
+                      leftSetCoordinates[3][1],
+                      progress
+                    ),
+                  ],
+                  [
+                    lerp(
+                      leftSetCoordinates[1][0],
+                      leftSetCoordinates[0][0],
+                      progress
+                    ),
+                    lerp(
+                      leftSetCoordinates[1][1],
+                      leftSetCoordinates[0][1],
+                      progress
+                    ),
+                  ],
+                  leftSetCoordinates[1], // B
+                  leftSetCoordinates[2], // C
+                ];
+              }
 
               leftWateredArea.setLatLngs(leftWateredAreaCoords);
-              rightWateredArea.setLatLngs(rightWateredAreaCoords);
-            } else {
-              clearInterval(animationInterval);
             }
-          }, 1000 / fps);
-        });
+          } else {
+            clearInterval(animationInterval);
+          }
+        }, 1000 / fps);
+      };
+
+      // Function to stop the left irrigation
+      const stopLeftIrrigation = () => {
+        leftIrrigationActive = false;
+
+        // Hide left sprinkler animation
+        const irrigatorElement = document.querySelector(".irrigator-icon");
+        if (irrigatorElement) {
+          irrigatorElement.classList.remove("left-irrigation-active");
+        }
+
+        // Reset watered area based on irrigator position
+        let resetLeftWateredAreaCoords;
+
+        if (irrigatorAtStart) {
+          // Reset to start side
+          resetLeftWateredAreaCoords = [
+            leftSetCoordinates[3], // D
+            leftSetCoordinates[0], // A
+            leftSetCoordinates[0], // A (no area)
+            leftSetCoordinates[3], // D (no area)
+          ];
+        } else {
+          // Reset to end side
+          resetLeftWateredAreaCoords = [
+            leftSetCoordinates[2], // C
+            leftSetCoordinates[1], // B
+            leftSetCoordinates[1], // B (no area)
+            leftSetCoordinates[2], // C (no area)
+          ];
+        }
+
+        leftWateredArea.setLatLngs(resetLeftWateredAreaCoords);
+        leftWateredArea.setStyle({ fillOpacity: 0 });
+
+        // If in coupled mode, also stop right irrigation
+        if (leftOperationMode === "coupled" && rightIrrigationActive) {
+          stopRightIrrigation();
+
+          // Update right toggle if popup is open
+          const rightToggle = document.getElementById("rightIrrigationToggle");
+          if (rightToggle) {
+            rightToggle.checked = false;
+            document.getElementById("rightIrrigationStatus").textContent =
+              "OFF";
+          }
+        }
+
+        // Stop irrigator movement if both sets are inactive
+        if (!rightIrrigationActive && irrigatorMoving) {
+          clearInterval(irrigatorMoveInterval);
+          irrigatorMoving = false;
+        }
+      };
+
+      // Function to stop the right irrigation
+      const stopRightIrrigation = () => {
+        rightIrrigationActive = false;
+
+        // Hide right sprinkler animation
+        const irrigatorElement = document.querySelector(".irrigator-icon");
+        if (irrigatorElement) {
+          irrigatorElement.classList.remove("right-irrigation-active");
+        }
+
+        // Reset watered area based on irrigator position
+        let resetRightWateredAreaCoords;
+
+        if (irrigatorAtStart) {
+          // Reset to start side
+          resetRightWateredAreaCoords = [
+            rightSetCoordinates[0],
+            rightSetCoordinates[3],
+            rightSetCoordinates[3],
+            rightSetCoordinates[0],
+          ];
+        } else {
+          // Reset to end side
+          resetRightWateredAreaCoords = [
+            rightSetCoordinates[1],
+            rightSetCoordinates[2],
+            rightSetCoordinates[2],
+            rightSetCoordinates[1],
+          ];
+        }
+
+        rightWateredArea.setLatLngs(resetRightWateredAreaCoords);
+        rightWateredArea.setStyle({ fillOpacity: 0 });
+
+        // If in coupled mode, also stop left irrigation
+        if (rightOperationMode === "coupled" && leftIrrigationActive) {
+          stopLeftIrrigation();
+
+          // Update left toggle if popup is open
+          const leftToggle = document.getElementById("leftIrrigationToggle");
+          if (leftToggle) {
+            leftToggle.checked = false;
+            document.getElementById("leftIrrigationStatus").textContent = "OFF";
+          }
+        }
+
+        // Stop irrigator movement if both sets are inactive
+        if (!leftIrrigationActive && irrigatorMoving) {
+          clearInterval(irrigatorMoveInterval);
+          irrigatorMoving = false;
+        }
+      };
+
+      // Event listeners for toggle switches
+      map.on("popupopen", function (e) {
+        // Check if it's the left irrigation popup
+        const leftToggle = document.getElementById("leftIrrigationToggle");
+        const leftModeSelect = document.getElementById("leftOperationMode");
+
+        if (leftToggle && leftModeSelect) {
+          // Set current values
+          leftToggle.checked = leftIrrigationActive;
+          document.getElementById("leftIrrigationStatus").textContent =
+            leftIrrigationActive ? "ON" : "OFF";
+          leftModeSelect.value = leftOperationMode;
+
+          // Add event listeners
+          leftToggle.addEventListener("change", function () {
+            if (this.checked) {
+              startLeftIrrigation();
+              document.getElementById("leftIrrigationStatus").textContent =
+                "ON";
+            } else {
+              // Perform full reset (same as Reset All button)
+              // Clear any existing animation
+              if (animationInterval) clearInterval(animationInterval);
+              if (irrigatorMoveInterval) clearInterval(irrigatorMoveInterval);
+              irrigatorMoving = false;
+
+              // Reset irrigator
+              irrigator.setLatLng(startPoint);
+              irrigatorAtStart = true; // Reset position tracking
+
+              setTimeout(() => {
+                const irrigatorElement = document.querySelector(
+                  ".irrigator-icon svg"
+                );
+                if (irrigatorElement) {
+                  irrigatorElement.style.transform = `rotate(${pathAngle}deg)`;
+                  irrigatorElement.style.transformOrigin = "center center";
+                }
+              }, 10);
+
+              // Reset watered areas to zero at the start position
+              leftIrrigationActive = false;
+              rightIrrigationActive = false;
+
+              // Hide both sprinkler animations
+              const irrigatorIconElement =
+                document.querySelector(".irrigator-icon");
+              if (irrigatorIconElement) {
+                irrigatorIconElement.classList.remove(
+                  "left-irrigation-active",
+                  "right-irrigation-active"
+                );
+              }
+
+              // Reset left watered area to start position
+              const resetLeftWateredAreaCoords = [
+                leftSetCoordinates[3], // D
+                leftSetCoordinates[0], // A
+                leftSetCoordinates[0], // A (no area)
+                leftSetCoordinates[3], // D (no area)
+              ];
+              leftWateredArea.setLatLngs(resetLeftWateredAreaCoords);
+              leftWateredArea.setStyle({ fillOpacity: 0 });
+
+              // Reset right watered area to start position
+              const resetRightWateredAreaCoords = [
+                rightSetCoordinates[0],
+                rightSetCoordinates[3],
+                rightSetCoordinates[3],
+                rightSetCoordinates[0],
+              ];
+              rightWateredArea.setLatLngs(resetRightWateredAreaCoords);
+              rightWateredArea.setStyle({ fillOpacity: 0 });
+
+              currentStep = 0;
+
+              // Update right toggle if popup is open
+              const rightToggle = document.getElementById(
+                "rightIrrigationToggle"
+              );
+              if (rightToggle) {
+                rightToggle.checked = false;
+                document.getElementById("rightIrrigationStatus").textContent =
+                  "OFF";
+              }
+
+              document.getElementById("leftIrrigationStatus").textContent =
+                "OFF";
+            }
+          });
+
+          leftModeSelect.addEventListener("change", function () {
+            leftOperationMode = this.value;
+
+            // If switching to coupled mode and irrigation is active, activate the other set too
+            if (
+              leftOperationMode === "coupled" &&
+              leftIrrigationActive &&
+              !rightIrrigationActive
+            ) {
+              rightIrrigationActive = true;
+              startRightIrrigation();
+            }
+          });
+        }
+
+        // Check if it's the right irrigation popup
+        const rightToggle = document.getElementById("rightIrrigationToggle");
+        const rightModeSelect = document.getElementById("rightOperationMode");
+
+        if (rightToggle && rightModeSelect) {
+          // Set current values
+          rightToggle.checked = rightIrrigationActive;
+          document.getElementById("rightIrrigationStatus").textContent =
+            rightIrrigationActive ? "ON" : "OFF";
+          rightModeSelect.value = rightOperationMode;
+
+          // Add event listeners
+          rightToggle.addEventListener("change", function () {
+            if (this.checked) {
+              startRightIrrigation();
+              document.getElementById("rightIrrigationStatus").textContent =
+                "ON";
+            } else {
+              // Perform full reset (same as Reset All button)
+              // Clear any existing animation
+              if (animationInterval) clearInterval(animationInterval);
+              if (irrigatorMoveInterval) clearInterval(irrigatorMoveInterval);
+              irrigatorMoving = false;
+
+              // Reset irrigator
+              irrigator.setLatLng(startPoint);
+              irrigatorAtStart = true; // Reset position tracking
+
+              setTimeout(() => {
+                const irrigatorElement = document.querySelector(
+                  ".irrigator-icon svg"
+                );
+                if (irrigatorElement) {
+                  irrigatorElement.style.transform = `rotate(${pathAngle}deg)`;
+                  irrigatorElement.style.transformOrigin = "center center";
+                }
+              }, 10);
+
+              // Reset watered areas to zero at the start position
+              leftIrrigationActive = false;
+              rightIrrigationActive = false;
+
+              // Hide both sprinkler animations
+              const irrigatorIconElement =
+                document.querySelector(".irrigator-icon");
+              if (irrigatorIconElement) {
+                irrigatorIconElement.classList.remove(
+                  "left-irrigation-active",
+                  "right-irrigation-active"
+                );
+              }
+
+              // Reset left watered area to start position
+              const resetLeftWateredAreaCoords = [
+                leftSetCoordinates[3], // D
+                leftSetCoordinates[0], // A
+                leftSetCoordinates[0], // A (no area)
+                leftSetCoordinates[3], // D (no area)
+              ];
+              leftWateredArea.setLatLngs(resetLeftWateredAreaCoords);
+              leftWateredArea.setStyle({ fillOpacity: 0 });
+
+              // Reset right watered area to start position
+              const resetRightWateredAreaCoords = [
+                rightSetCoordinates[0],
+                rightSetCoordinates[3],
+                rightSetCoordinates[3],
+                rightSetCoordinates[0],
+              ];
+              rightWateredArea.setLatLngs(resetRightWateredAreaCoords);
+              rightWateredArea.setStyle({ fillOpacity: 0 });
+
+              currentStep = 0;
+
+              // Update left toggle if popup is open
+              const leftToggle = document.getElementById(
+                "leftIrrigationToggle"
+              );
+              if (leftToggle) {
+                leftToggle.checked = false;
+                document.getElementById("leftIrrigationStatus").textContent =
+                  "OFF";
+              }
+
+              document.getElementById("rightIrrigationStatus").textContent =
+                "OFF";
+            }
+          });
+
+          rightModeSelect.addEventListener("change", function () {
+            rightOperationMode = this.value;
+
+            // If switching to coupled mode and irrigation is active, activate the other set too
+            if (
+              rightOperationMode === "coupled" &&
+              rightIrrigationActive &&
+              !leftIrrigationActive
+            ) {
+              leftIrrigationActive = true;
+              startLeftIrrigation();
+            }
+          });
+        }
+      });
 
       document
         .getElementById("resetAnimation")
         .addEventListener("click", function () {
           // Clear any existing animation
           if (animationInterval) clearInterval(animationInterval);
+          if (irrigatorMoveInterval) clearInterval(irrigatorMoveInterval);
+          irrigatorMoving = false;
 
           // Reset irrigator
           irrigator.setLatLng(startPoint);
+          irrigatorAtStart = true; // Reset position tracking
+
           setTimeout(() => {
             const irrigatorElement = document.querySelector(
               ".irrigator-icon svg"
@@ -493,23 +1280,38 @@
             }
           }, 10);
 
-          // Reset watered areas to zero
+          // Reset watered areas to zero at the start position
+          leftIrrigationActive = false;
+          rightIrrigationActive = false;
+
+          // Hide both sprinkler animations
+          const irrigatorIconElement =
+            document.querySelector(".irrigator-icon");
+          if (irrigatorIconElement) {
+            irrigatorIconElement.classList.remove(
+              "left-irrigation-active",
+              "right-irrigation-active"
+            );
+          }
+
+          // Reset left watered area to start position
           const resetLeftWateredAreaCoords = [
             leftSetCoordinates[3], // D
             leftSetCoordinates[0], // A
-            leftSetCoordinates[0],
-            leftSetCoordinates[3],
+            leftSetCoordinates[0], // A (no area)
+            leftSetCoordinates[3], // D (no area)
           ];
+          leftWateredArea.setLatLngs(resetLeftWateredAreaCoords);
+          leftWateredArea.setStyle({ fillOpacity: 0 });
+
+          // Reset right watered area to start position
           const resetRightWateredAreaCoords = [
             rightSetCoordinates[0],
             rightSetCoordinates[3],
             rightSetCoordinates[3],
             rightSetCoordinates[0],
           ];
-
-          leftWateredArea.setLatLngs(resetLeftWateredAreaCoords);
           rightWateredArea.setLatLngs(resetRightWateredAreaCoords);
-          leftWateredArea.setStyle({ fillOpacity: 0 });
           rightWateredArea.setStyle({ fillOpacity: 0 });
 
           currentStep = 0;
