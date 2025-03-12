@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Irrigation Systems Simulator</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f7fa;
+        color: #333;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #2c3e50;
+        margin-bottom: 30px;
+      }
+      .tabs {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+      }
+      .tab-button {
+        background-color: #f8f9fa;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 12px 24px;
+        margin: 0 5px;
+        font-size: 16px;
+        border-radius: 5px 5px 0 0;
+        transition: all 0.3s ease;
+      }
+      .tab-button:hover {
+        background-color: #e9ecef;
+      }
+      .tab-button.active {
+        background-color: #3498db;
+        color: white;
+      }
+      .tab-content {
+        display: none;
+        padding: 20px;
+        animation: fadeIn 0.5s;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .simulation-container {
+        width: 100%;
+        height: 400px;
+        border: 1px solid #ddd;
+        position: relative;
+        overflow: hidden;
+        background-color: #e8f4e5;
+        margin-bottom: 20px;
+      }
+      .info-box {
+        background-color: #f8f9fa;
+        border-left: 4px solid #3498db;
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+      .controls {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+      button {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 0 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      button:hover {
+        background-color: #2980b9;
+      }
+      button:disabled {
+        background-color: #bdc3c7;
+        cursor: not-allowed;
+      }
+
+      /* Irrigation system elements */
+      .irrigator {
+        position: absolute;
+        transition: all 0.5s linear;
+      }
+      .travelling-irrigator {
+        width: 80px;
+        height: 40px;
+        background-color: #3498db;
+        border-radius: 5px;
+        bottom: 20px;
+        left: 0;
+      }
+      .lateral-irrigator {
+        width: 10px;
+        height: 360px;
+        background-color: #e74c3c;
+        left: 20px;
+        top: 20px;
+      }
+      .lateral-sprinkler {
+        width: 10px;
+        height: 10px;
+        background-color: #2ecc71;
+        border-radius: 50%;
+        position: absolute;
+        left: 0;
+      }
+      .pivot-arm {
+        width: 300px;
+        height: 10px;
+        background-color: #9b59b6;
+        position: absolute;
+        top: 195px;
+        left: 50%;
+        transform-origin: left center;
+        transform: translateX(-50%) rotate(0deg);
+      }
+      .pivot-center {
+        width: 20px;
+        height: 20px;
+        background-color: #34495e;
+        border-radius: 50%;
+        position: absolute;
+        top: 190px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .pivot-sprinkler {
+        width: 8px;
+        height: 8px;
+        background-color: #2ecc71;
+        border-radius: 50%;
+        position: absolute;
+      }
+      .water-drop {
+        position: absolute;
+        width: 4px;
+        height: 8px;
+        background-color: rgba(52, 152, 219, 0.7);
+        border-radius: 50%;
+        animation: waterDrop 1s infinite;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes waterDrop {
+        0% {
+          transform: translateY(0);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Irrigation Systems Simulator</h1>
+
+      <div class="tabs">
+        <button
+          class="tab-button active"
+          onclick="openTab(event, 'travelling')"
+        >
+          Travelling Irrigator
+        </button>
+        <button class="tab-button" onclick="openTab(event, 'lateral')">
+          Lateral Irrigator
+        </button>
+        <button class="tab-button" onclick="openTab(event, 'pivot')">
+          Pivot Irrigator
+        </button>
+      </div>
+
+      <!-- Travelling Irrigator Tab -->
+      <div id="travelling" class="tab-content active">
+        <div class="info-box">
+          <h3>Travelling Irrigator</h3>
+          <p>
+            A travelling irrigator moves across the field in a straight line,
+            distributing water as it travels. It's commonly used for rectangular
+            fields and can cover large areas efficiently.
+          </p>
+        </div>
+
+        <div class="simulation-container" id="travelling-simulation">
+          <div
+            class="irrigator travelling-irrigator"
+            id="travelling-unit"
+          ></div>
+        </div>
+
+        <div class="controls">
+          <button onclick="startTravellingSimulation()">
+            Start Simulation
+          </button>
+          <button onclick="resetTravellingSimulation()">Reset</button>
+        </div>
+      </div>
+
+      <!-- Lateral Irrigator Tab -->
+      <div id="lateral" class="tab-content">
+        <div class="info-box">
+          <h3>Lateral Irrigator</h3>
+          <p>
+            Lateral irrigation systems consist of a series of sprinklers mounted
+            on a pipeline that moves in a straight line across a field. They're
+            ideal for rectangular fields and provide uniform water distribution.
+          </p>
+        </div>
+
+        <div class="simulation-container" id="lateral-simulation">
+          <div class="irrigator lateral-irrigator" id="lateral-unit"></div>
+        </div>
+
+        <div class="controls">
+          <button onclick="startLateralSimulation()">Start Simulation</button>
+          <button onclick="resetLateralSimulation()">Reset</button>
+        </div>
+      </div>
+
+      <!-- Pivot Irrigator Tab -->
+      <div id="pivot" class="tab-content">
+        <div class="info-box">
+          <h3>Center Pivot Irrigator</h3>
+          <p>
+            Center pivot irrigation systems rotate around a central pivot point,
+            creating circular irrigation patterns. They're widely used for their
+            efficiency and ability to cover large circular areas with minimal
+            labor.
+          </p>
+        </div>
+
+        <div class="simulation-container" id="pivot-simulation">
+          <div class="pivot-center"></div>
+          <div class="pivot-arm" id="pivot-arm"></div>
+        </div>
+
+        <div class="controls">
+          <button onclick="startPivotSimulation()">Start Simulation</button>
+          <button onclick="resetPivotSimulation()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Tab functionality
+      function openTab(evt, tabName) {
+        const tabContents = document.getElementsByClassName("tab-content");
+        for (let i = 0; i < tabContents.length; i++) {
+          tabContents[i].classList.remove("active");
+        }
+
+        const tabButtons = document.getElementsByClassName("tab-button");
+        for (let i = 0; i < tabButtons.length; i++) {
+          tabButtons[i].classList.remove("active");
+        }
+
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+
+        // Reset all simulations when switching tabs
+        resetTravellingSimulation();
+        resetLateralSimulation();
+        resetPivotSimulation();
+      }
+
+      // Travelling Irrigator Simulation
+      let travellingInterval;
+
+      function startTravellingSimulation() {
+        clearInterval(travellingInterval);
+
+        const travellingUnit = document.getElementById("travelling-unit");
+        const container = document.getElementById("travelling-simulation");
+        const containerWidth = container.offsetWidth;
+        let position = 0;
+
+        travellingInterval = setInterval(() => {
+          if (position >= containerWidth - 80) {
+            clearInterval(travellingInterval);
+            return;
+          }
+
+          position += 2;
+          travellingUnit.style.left = position + "px";
+
+          // Create water drops
+          createWaterDrops(travellingUnit, 3);
+        }, 50);
+      }
+
+      function resetTravellingSimulation() {
+        clearInterval(travellingInterval);
+        const travellingUnit = document.getElementById("travelling-unit");
+        travellingUnit.style.left = "0px";
+
+        // Remove all water drops
+        removeWaterDrops("travelling-simulation");
+      }
+
+      // Lateral Irrigator Simulation
+      let lateralInterval;
+      let lateralSprinklers = [];
+
+      function setupLateralIrrigator() {
+        const lateralUnit = document.getElementById("lateral-unit");
+        lateralSprinklers = [];
+
+        // Remove existing sprinklers
+        const existingSprinklers =
+          lateralUnit.querySelectorAll(".lateral-sprinkler");
+        existingSprinklers.forEach((sprinkler) => sprinkler.remove());
+
+        // Create sprinklers along the lateral line
+        for (let i = 0; i < 10; i++) {
+          const sprinkler = document.createElement("div");
+          sprinkler.className = "lateral-sprinkler";
+          sprinkler.style.top = i * 40 + "px";
+          lateralUnit.appendChild(sprinkler);
+          lateralSprinklers.push(sprinkler);
+        }
+      }
+
+      function startLateralSimulation() {
+        clearInterval(lateralInterval);
+        setupLateralIrrigator();
+
+        const lateralUnit = document.getElementById("lateral-unit");
+        const container = document.getElementById("lateral-simulation");
+        const containerWidth = container.offsetWidth;
+        let position = 20;
+
+        lateralInterval = setInterval(() => {
+          if (position >= containerWidth - 10) {
+            clearInterval(lateralInterval);
+            return;
+          }
+
+          position += 2;
+          lateralUnit.style.left = position + "px";
+
+          // Create water drops from each sprinkler
+          lateralSprinklers.forEach((sprinkler) => {
+            createWaterDrops(sprinkler, 1);
+          });
+        }, 50);
+      }
+
+      function resetLateralSimulation() {
+        clearInterval(lateralInterval);
+        const lateralUnit = document.getElementById("lateral-unit");
+        lateralUnit.style.left = "20px";
+
+        // Remove all water drops
+        removeWaterDrops("lateral-simulation");
+      }
+
+      // Pivot Irrigator Simulation
+      let pivotInterval;
+      let pivotSprinklers = [];
+      let pivotAngle = 0;
+
+      function setupPivotIrrigator() {
+        const pivotArm = document.getElementById("pivot-arm");
+        pivotSprinklers = [];
+
+        // Remove existing sprinklers
+        const existingSprinklers =
+          document.querySelectorAll(".pivot-sprinkler");
+        existingSprinklers.forEach((sprinkler) => sprinkler.remove());
+
+        // Create sprinklers along the pivot arm
+        for (let i = 1; i <= 10; i++) {
+          const sprinkler = document.createElement("div");
+          sprinkler.className = "pivot-sprinkler";
+          sprinkler.style.left = i * 30 - 4 + "px";
+          sprinkler.style.top = "1px";
+          pivotArm.appendChild(sprinkler);
+          pivotSprinklers.push(sprinkler);
+        }
+      }
+
+      function startPivotSimulation() {
+        clearInterval(pivotInterval);
+        setupPivotIrrigator();
+
+        const pivotArm = document.getElementById("pivot-arm");
+        pivotAngle = 0;
+
+        pivotInterval = setInterval(() => {
+          if (pivotAngle >= 360) {
+            clearInterval(pivotInterval);
+            return;
+          }
+
+          pivotAngle += 1;
+          pivotArm.style.transform = `translateX(-50%) rotate(${pivotAngle}deg)`;
+
+          // Create water drops from each sprinkler
+          if (pivotAngle % 5 === 0) {
+            pivotSprinklers.forEach((sprinkler) => {
+              const rect = sprinkler.getBoundingClientRect();
+              const containerRect = document
+                .getElementById("pivot-simulation")
+                .getBoundingClientRect();
+
+              const drop = document.createElement("div");
+              drop.className = "water-drop";
+              drop.style.left = rect.left - containerRect.left + "px";
+              drop.style.top = rect.top - containerRect.top + "px";
+              document.getElementById("pivot-simulation").appendChild(drop);
+
+              // Remove water drop after animation
+              setTimeout(() => {
+                drop.remove();
+              }, 1000);
+            });
+          }
+        }, 50);
+      }
+
+      function resetPivotSimulation() {
+        clearInterval(pivotInterval);
+        const pivotArm = document.getElementById("pivot-arm");
+        pivotArm.style.transform = "translateX(-50%) rotate(0deg)";
+
+        // Remove all water drops
+        removeWaterDrops("pivot-simulation");
+      }
+
+      // Helper functions
+      function createWaterDrops(element, count) {
+        const rect = element.getBoundingClientRect();
+        const containerRect = element
+          .closest(".simulation-container")
+          .getBoundingClientRect();
+
+        for (let i = 0; i < count; i++) {
+          const drop = document.createElement("div");
+          drop.className = "water-drop";
+
+          // Random position within the element
+          const randomOffset = Math.random() * element.offsetWidth;
+          drop.style.left =
+            rect.left - containerRect.left + randomOffset + "px";
+          drop.style.top =
+            rect.top - containerRect.top + element.offsetHeight / 2 + "px";
+
+          element.closest(".simulation-container").appendChild(drop);
+
+          // Remove water drop after animation
+          setTimeout(() => {
+            drop.remove();
+          }, 1000);
+        }
+      }
+
+      function removeWaterDrops(containerId) {
+        const container = document.getElementById(containerId);
+        const waterDrops = container.querySelectorAll(".water-drop");
+        waterDrops.forEach((drop) => drop.remove());
+      }
+    </script>
+  </body>
+</html>

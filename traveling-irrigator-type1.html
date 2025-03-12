@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Irrigation Set Polygon Map - Double Set Irrigator</title>
+
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+
+    <!-- Leaflet JavaScript -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        width: 100%;
+        height: 100vh;
+      }
+      .info-panel {
+        padding: 10px;
+        background: white;
+        border-radius: 5px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+      }
+      .info-panel h4 {
+        margin: 0 0 5px;
+        color: #555;
+      }
+      .leaflet-control-attribution {
+        font-size: 8px !important;
+        background-color: rgba(255, 255, 255, 0.3) !important;
+        padding: 3px !important;
+        opacity: 0.6;
+      }
+      .leaflet-control-attribution:hover {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <script>
+      // Initialize the map
+      const map = L.map("map", {
+        zoomControl: true,
+        attributionControl: true,
+        zoomSnap: 0.25,
+        zoomDelta: 0.25,
+      }).setView([-21.213, 149.103], 16); // Centered between the two irrigation sets
+
+      // Add satellite imagery layer
+      const esriLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 19,
+          attribution:
+            '<span style="font-size: 8px; opacity: 0.6;">© Esri &mdash; Esri Community</span>',
+        }
+      ).addTo(map);
+
+      // Create left irrigation set polygon (unwatered style: same as type2)
+      const leftSetCoordinates = [
+        [-21.215364, 149.100756],
+        [-21.211755, 149.101202],
+        [-21.212008, 149.103543],
+        [-21.215616, 149.103097],
+        [-21.215364, 149.100756], // Close the polygon
+      ];
+
+      // Create right irrigation set polygon (unwatered style: same as type2)
+      const rightSetCoordinates = [
+        [-21.215616, 149.10324],
+        [-21.212013, 149.10364],
+        [-21.212305, 149.106012],
+        [-21.215794, 149.105629],
+        [-21.215616, 149.10324], // Close the polygon
+      ];
+
+      const leftIrrigationPolygon = L.polygon(leftSetCoordinates, {
+        color: "#007bff",
+        weight: 2,
+        opacity: 1,
+        fillColor: "none",
+        fillOpacity: 0.2,
+      }).addTo(map);
+
+      const rightIrrigationPolygon = L.polygon(rightSetCoordinates, {
+        color: "#007bff",
+        weight: 2,
+        opacity: 1,
+        fillColor: "none",
+        fillOpacity: 0.2,
+      }).addTo(map);
+
+      // Add popups to the polygons
+      leftIrrigationPolygon.bindPopup("Left Irrigation Set");
+      rightIrrigationPolygon.bindPopup("Right Irrigation Set");
+
+      // Group both polygons for a proper fit
+      const irrigationGroup = L.featureGroup([
+        leftIrrigationPolygon,
+        rightIrrigationPolygon,
+      ]);
+      map.fitBounds(irrigationGroup.getBounds());
+
+      // Info panel
+      const info = L.control();
+      info.onAdd = function (map) {
+        this._div = L.DomUtil.create("div", "info-panel");
+        this.update();
+        return this._div;
+      };
+      info.update = function () {
+        this._div.innerHTML =
+          "<h4>Irrigation Sets Information</h4>" +
+          "Left Set Area: 0.8 hectare<br>" +
+          "Right Set Area: 0.8 hectare<br>" +
+          "Type: Dual Sets<br>" +
+          "Status: Active";
+      };
+      info.addTo(map);
+
+      // Define irrigator travel path between the two sets
+      // Start: midpoint between leftSet(D) and rightSet(A)
+      const startPoint = [
+        (leftSetCoordinates[3][0] + rightSetCoordinates[0][0]) / 2,
+        (leftSetCoordinates[3][1] + rightSetCoordinates[0][1]) / 2,
+      ];
+      // End: midpoint between leftSet(C) and rightSet(B)
+      const endPoint = [
+        (leftSetCoordinates[2][0] + rightSetCoordinates[1][0]) / 2,
+        (leftSetCoordinates[2][1] + rightSetCoordinates[1][1]) / 2,
+      ];
+
+      // Draw a faint line showing the path
+      const irrigatorPath = [startPoint, endPoint];
+      const pathLine = L.polyline(irrigatorPath, {
+        color: "#555555",
+        weight: 1,
+        opacity: 0.5,
+        dashArray: "3, 3",
+      }).addTo(map);
+
+      // Custom irrigator icon with sprinklers on both sides
+      const irrigatorIcon = L.divIcon({
+        className: "irrigator-icon",
+        html: `
+          <svg width="60" height="40" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+            <!-- Main irrigator vehicle body -->
+            <rect x="20" y="15" width="20" height="10" rx="2" fill="#2c3e50" stroke="#333333" stroke-width="1" />
+            
+            <!-- Wheels -->
+            <circle cx="23" cy="25" r="3" fill="#555555" stroke="#333333" stroke-width="0.5" />
+            <circle cx="37" cy="25" r="3" fill="#555555" stroke="#333333" stroke-width="0.5" />
+            
+            <!-- Left arm with sprinklers -->
+            <rect x="5" y="18" width="15" height="4" rx="1" fill="#3498db" stroke="#333333" stroke-width="0.5" />
+            
+            <!-- Right arm with sprinklers -->
+            <rect x="40" y="18" width="15" height="4" rx="1" fill="#3498db" stroke="#333333" stroke-width="0.5" />
+            
+            <!-- Left sprinklers -->
+            <circle cx="8" cy="20" r="1.5" fill="white" stroke="#cccccc" stroke-width="0.5" class="sprinkler" />
+            <circle cx="15" cy="20" r="1.5" fill="white" stroke="#cccccc" stroke-width="0.5" class="sprinkler" />
+            
+            <!-- Right sprinklers -->
+            <circle cx="45" cy="20" r="1.5" fill="white" stroke="#cccccc" stroke-width="0.5" class="sprinkler" />
+            <circle cx="52" cy="20" r="1.5" fill="white" stroke="#cccccc" stroke-width="0.5" class="sprinkler" />
+            
+            <!-- Water spray for all sprinklers -->
+            <g class="water-spray">
+              <!-- Left sprinkler sprays -->
+              <path d="M8,20 Q8,15 8,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M8,20 Q5,15 3,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M8,20 Q11,15 13,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              
+              <path d="M15,20 Q15,15 15,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M15,20 Q12,15 10,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M15,20 Q18,15 20,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              
+              <!-- Right sprinkler sprays -->
+              <path d="M45,20 Q45,15 45,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M45,20 Q42,15 40,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M45,20 Q48,15 50,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              
+              <path d="M52,20 Q52,15 52,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M52,20 Q49,15 47,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+              <path d="M52,20 Q55,15 57,12" stroke="#ffffff" stroke-width="0.8" fill="none" stroke-dasharray="1,1" />
+            </g>
+          </svg>
+        `,
+        iconSize: [60, 40],
+        iconAnchor: [30, 20],
+      });
+
+      // Create the irrigator marker
+      const irrigator = L.marker(startPoint, {
+        icon: irrigatorIcon,
+        zIndexOffset: 1000,
+      }).addTo(map);
+
+      // Calculate the angle of the path for proper vehicle orientation
+      const calculateAngle = (point1, point2) => {
+        const dx = point2[1] - point1[1]; // Longitude difference
+        const dy = point2[0] - point1[0]; // Latitude difference
+        let angle = Math.atan2(dx, dy) * (180 / Math.PI);
+        return angle;
+      };
+
+      // Initial angle of the path
+      const pathAngle = calculateAngle(startPoint, endPoint);
+
+      // Apply initial rotation to irrigator icon
+      setTimeout(() => {
+        const irrigatorElement = document.querySelector(".irrigator-icon svg");
+        if (irrigatorElement) {
+          irrigatorElement.style.transform = `rotate(${pathAngle}deg)`;
+          irrigatorElement.style.transformOrigin = "center center";
+        }
+      }, 100);
+
+      // Sprinkler spray animation
+      const sprinklerAnimation = document.createElement("style");
+      sprinklerAnimation.textContent = `
+        @keyframes spray {
+          0% { opacity: 0.3; }
+          50% { opacity: 0.9; }
+          100% { opacity: 0.3; }
+        }
+        .water-spray {
+          animation: spray 1.5s infinite;
+          filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.8));
+        }
+        .irrigator-icon {
+          z-index: 1000;
+          filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.4));
+        }
+        .sprinkler {
+          filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.7));
+        }
+      `;
+      document.head.appendChild(sprinklerAnimation);
+
+      // Create SVG gradient and water pattern definition (same as type2)
+      const svgDefs = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg"
+      );
+      svgDefs.setAttribute("width", "0");
+      svgDefs.setAttribute("height", "0");
+      svgDefs.innerHTML = `
+        <defs>
+          <!-- Water pattern for the irrigated areas -->
+          <pattern id="water-pattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+            <!-- Transparent base with wave lines -->
+            <rect x="0" y="0" width="10" height="10" fill="none" fill-opacity="0.5" />
+            <path d="M0,5 Q2.5,3 5,5 T10,5" fill="none" stroke="#a8d8ea" stroke-width="0.5" opacity="0.4" />
+            <path d="M0,7.5 Q2.5,5.5 5,7.5 T10,7.5" fill="none" stroke="#a8d8ea" stroke-width="0.5" opacity="0.4" />
+            <path d="M0,2.5 Q2.5,0.5 5,2.5 T10,2.5" fill="none" stroke="#a8d8ea" stroke-width="0.5" opacity="0.4" />
+          </pattern>
+          
+          <!-- Blue water pattern for watered areas -->
+          <pattern id="blue-water-pattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+            <!-- Blue base with wave lines -->
+            <rect x="0" y="0" width="10" height="10" fill="#4BB4E6" fill-opacity="0.7" />
+            <path d="M0,5 Q2.5,3 5,5 T10,5" fill="none" stroke="white" stroke-width="0.5" opacity="0.4" />
+            <path d="M0,7.5 Q2.5,5.5 5,7.5 T10,7.5" fill="none" stroke="white" stroke-width="0.5" opacity="0.4" />
+            <path d="M0,2.5 Q2.5,0.5 5,2.5 T10,2.5" fill="none" stroke="white" stroke-width="0.5" opacity="0.4" />
+          </pattern>
+        </defs>
+      `;
+      document.body.appendChild(svgDefs);
+
+      // Update the unwatered irrigation set polygons to show the wave pattern
+      leftIrrigationPolygon.setStyle({
+        fillColor: "none",
+        fillOpacity: 0.2,
+      });
+
+      rightIrrigationPolygon.setStyle({
+        fillColor: "none",
+        fillOpacity: 0.2,
+      });
+
+      // Create watered areas for left and right sets
+      const wateredAreaStyle = {
+        color: "#4BB4E6",
+        fillColor: "url(#blue-water-pattern)",
+        fillOpacity: 1,
+        weight: 1.5,
+        className: "watered-area",
+      };
+
+      const leftWateredArea = L.polygon(
+        [
+          leftSetCoordinates[3], // D
+          leftSetCoordinates[0], // A
+          leftSetCoordinates[0], // A (no area)
+          leftSetCoordinates[3], // D (no area)
+        ],
+        wateredAreaStyle
+      ).addTo(map);
+
+      const rightWateredArea = L.polygon(
+        [
+          rightSetCoordinates[0],
+          rightSetCoordinates[3],
+          rightSetCoordinates[3],
+          rightSetCoordinates[0],
+        ],
+        wateredAreaStyle
+      ).addTo(map);
+
+      // Add style for watered-area polygons
+      const waterStyle = document.createElement("style");
+      waterStyle.textContent = `
+        .watered-area {
+          filter: drop-shadow(0 0 2px rgba(75, 180, 230, 0.4));
+        }
+      `;
+      document.head.appendChild(waterStyle);
+
+      // Apply the wave pattern to all irrigation polygons
+      setTimeout(() => {
+        // Apply pattern to unwatered irrigation polygons
+        document
+          .querySelectorAll('.leaflet-overlay-pane svg path[stroke="#007bff"]')
+          .forEach((path) => {
+            path.setAttribute("fill", "url(#water-pattern)");
+            path.setAttribute("fill-opacity", "0.2");
+          });
+      }, 100);
+
+      // Controls
+      const controlPanel = L.control({ position: "bottomleft" });
+      controlPanel.onAdd = function (map) {
+        const div = L.DomUtil.create("div", "control-panel");
+        div.style.backgroundColor = "white";
+        div.style.padding = "10px";
+        div.style.borderRadius = "5px";
+        div.style.boxShadow = "0 0 15px rgba(0,0,0,0.2)";
+        div.innerHTML = `
+          <h4 style="margin-top: 0;">Dual Set Irrigator Controls</h4>
+          <button id="startAnimation" style="margin-right: 5px; padding: 5px 10px; background-color: #4BB4E6; color: white; border: none; border-radius: 3px; cursor: pointer;">Start Animation</button>
+          <button id="resetAnimation" style="padding: 5px 10px; background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 3px; cursor: pointer;">Reset</button>
+        `;
+        return div;
+      };
+      controlPanel.addTo(map);
+
+      // Animation logic
+      let animationInterval;
+      const animationDuration = 10000; // 10 seconds
+      const fps = 30;
+      const steps = animationDuration / (1000 / fps);
+      let currentStep = 0;
+
+      // Linear interpolation helper
+      const lerp = (start, end, t) => start + t * (end - start);
+
+      document
+        .getElementById("startAnimation")
+        .addEventListener("click", function () {
+          // Clear any existing animation
+          if (animationInterval) clearInterval(animationInterval);
+
+          // Start the animation
+          currentStep = 0;
+          animationInterval = setInterval(function () {
+            currentStep++;
+            if (currentStep <= steps) {
+              const progress = currentStep / steps;
+
+              // Current irrigator position
+              const currentPosition = [
+                lerp(startPoint[0], endPoint[0], progress),
+                lerp(startPoint[1], endPoint[1], progress),
+              ];
+              irrigator.setLatLng(currentPosition);
+
+              // Keep correct rotation
+              setTimeout(() => {
+                const irrigatorElement = document.querySelector(
+                  ".irrigator-icon svg"
+                );
+                if (irrigatorElement) {
+                  irrigatorElement.style.transform = `rotate(${pathAngle}deg)`;
+                  irrigatorElement.style.transformOrigin = "center center";
+                }
+              }, 10);
+
+              // Fade watered areas in once animation starts
+              leftWateredArea.setStyle({ fillOpacity: 0.7 });
+              rightWateredArea.setStyle({ fillOpacity: 0.7 });
+
+              // For left set: expand from D-A to C-B
+              const leftWateredAreaCoords = [
+                leftSetCoordinates[3], // D
+                leftSetCoordinates[0], // A
+                [
+                  lerp(
+                    leftSetCoordinates[0][0],
+                    leftSetCoordinates[1][0],
+                    progress
+                  ),
+                  lerp(
+                    leftSetCoordinates[0][1],
+                    leftSetCoordinates[1][1],
+                    progress
+                  ),
+                ],
+                [
+                  lerp(
+                    leftSetCoordinates[3][0],
+                    leftSetCoordinates[2][0],
+                    progress
+                  ),
+                  lerp(
+                    leftSetCoordinates[3][1],
+                    leftSetCoordinates[2][1],
+                    progress
+                  ),
+                ],
+              ];
+
+              // For right set: expand from its left edge to the interior
+              const rightWateredAreaCoords = [
+                rightSetCoordinates[0],
+                rightSetCoordinates[3],
+                [
+                  lerp(
+                    rightSetCoordinates[3][0],
+                    rightSetCoordinates[2][0],
+                    progress
+                  ),
+                  lerp(
+                    rightSetCoordinates[3][1],
+                    rightSetCoordinates[2][1],
+                    progress
+                  ),
+                ],
+                [
+                  lerp(
+                    rightSetCoordinates[0][0],
+                    rightSetCoordinates[1][0],
+                    progress
+                  ),
+                  lerp(
+                    rightSetCoordinates[0][1],
+                    rightSetCoordinates[1][1],
+                    progress
+                  ),
+                ],
+              ];
+
+              leftWateredArea.setLatLngs(leftWateredAreaCoords);
+              rightWateredArea.setLatLngs(rightWateredAreaCoords);
+            } else {
+              clearInterval(animationInterval);
+            }
+          }, 1000 / fps);
+        });
+
+      document
+        .getElementById("resetAnimation")
+        .addEventListener("click", function () {
+          // Clear any existing animation
+          if (animationInterval) clearInterval(animationInterval);
+
+          // Reset irrigator
+          irrigator.setLatLng(startPoint);
+          setTimeout(() => {
+            const irrigatorElement = document.querySelector(
+              ".irrigator-icon svg"
+            );
+            if (irrigatorElement) {
+              irrigatorElement.style.transform = `rotate(${pathAngle}deg)`;
+              irrigatorElement.style.transformOrigin = "center center";
+            }
+          }, 10);
+
+          // Reset watered areas to zero
+          const resetLeftWateredAreaCoords = [
+            leftSetCoordinates[3], // D
+            leftSetCoordinates[0], // A
+            leftSetCoordinates[0],
+            leftSetCoordinates[3],
+          ];
+          const resetRightWateredAreaCoords = [
+            rightSetCoordinates[0],
+            rightSetCoordinates[3],
+            rightSetCoordinates[3],
+            rightSetCoordinates[0],
+          ];
+
+          leftWateredArea.setLatLngs(resetLeftWateredAreaCoords);
+          rightWateredArea.setLatLngs(resetRightWateredAreaCoords);
+          leftWateredArea.setStyle({ fillOpacity: 0 });
+          rightWateredArea.setStyle({ fillOpacity: 0 });
+
+          currentStep = 0;
+        });
+
+      // Show start/end points visually
+      const startMarker = L.circleMarker(startPoint, {
+        color: "green",
+        radius: 5,
+        fillOpacity: 0.5,
+      })
+        .addTo(map)
+        .bindTooltip("Start Position", { permanent: false });
+
+      const endMarker = L.circleMarker(endPoint, {
+        color: "red",
+        radius: 5,
+        fillOpacity: 0.5,
+      })
+        .addTo(map)
+        .bindTooltip("End Position", { permanent: false });
+    </script>
+  </body>
+</html>
